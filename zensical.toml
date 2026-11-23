@@ -1,0 +1,31 @@
+[project]
+site_name = "Marsyule · Learning Notes"
+site_description = "AI Agents、Python、Linux 与 AI Coding 学习笔记"
+site_url = "https://marsyule.github.io/learning-notes/"
+repo_url = "https://github.com/marsyule/learning-notes"
+repo_name = "marsyule/learning-notes"
+
+[project.theme]
+language = "zh"
+features = [
+  "navigation.instant",
+  "navigation.sections",
+  "navigation.top",
+  "toc.follow",
+  "search.highlight",
+  "content.code.copy",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "indigo"
+accent = "indigo"
+toggle.icon = "lucide/sun"
+toggle.name = "切换至深色模式"
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "indigo"
+accent = "indigo"
+toggle.icon = "lucide/moon"
+toggle.name = "切换至浅色模式"
