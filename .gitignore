@@ -1,0 +1,8 @@
+# Generated static site
+site/
+docs/deepagents/
+
+# Python build artifacts
+__pycache__/
+.venv/
+*.pyc
