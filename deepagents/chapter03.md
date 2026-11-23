@@ -1,10 +1,10 @@
 # 第三章：虚拟文件系统与存储后端——从 Context Engineering 到可靠的长程 Agent
 
 > **课程**：DeepAgents In Action · Task03  
-> **学习状态**：已完成概念讨论与综合设计；代码实验待验证  
+> **学习状态**：已完成概念讨论，本文聚焦原理与系统设计  
 > **资料依据**：[课程第三章](https://datawhalechina.github.io/deepagents-in-action/chapters/ch03-virtual-filesystem/) · [原始 Markdown](https://github.com/datawhalechina/deepagents-in-action/blob/main/content/ch03-virtual-filesystem.md)  
 > **版本范围**：主要依据课程所述 Deep Agents v0.7 行为；具体接口随版本演进可能变化。  
-> **内容边界**：前半部分是对课程的归纳，后半部分是结合苏格拉底式讨论形成的设计思考；未把概念方案冒充已运行的实验。
+> **内容边界**：前半部分归纳课程知识，后半部分呈现苏格拉底式讨论形成的设计思考；本文不包含实验记录或代码演示。
 
 ## 0. 核心结论
 
@@ -60,12 +60,7 @@ Deep Agents 第三章所述 v0.7 版本包含七种主要文件工具：
 
 对于文本，可通过偏移量读取需要的行：
 
-~~~python
-# 工具调用示意，非独立可运行脚本
-read_file("/workspace/report.md", offset=100, limit=50)
-~~~
-
-该例从第 101 行读取 50 行。实际用于论文检索时，可以先定位命中片段，再向前、向后扩展读取邻近段落，防止断章取义。
+对于大文件，可按偏移量和读取数量分段访问。例如，跳过前 100 行，再读取接下来的 50 行，只将当前需要的片段放进模型上下文。
 
 这种“邻近扩展”是基于内置分片读取能力提出的应用策略，而不是一套默认自动执行的智能检索算法。
 
@@ -140,11 +135,11 @@ read_file("/workspace/report.md", offset=100, limit=50)
 
 以科研 Agent 为例，可以按路径组织：
 
-~~~text
-/workspace/plan.md         → StateBackend        当前任务计划
-/papers/paper_001.pdf      → FilesystemBackend   本地论文材料
-/memories/preferences.md   → StoreBackend        跨线程、按用户隔离的长期偏好
-~~~
+| 路径示意 | 路由到 | 数据用途 |
+| --- | --- | --- |
+| `/workspace/plan.md` | StateBackend | 当前任务计划 |
+| `/papers/paper_001.pdf` | FilesystemBackend | 本地论文材料 |
+| `/memories/preferences.md` | StoreBackend | 跨线程的用户偏好 |
 
 这是一个**扩展设计示意**，具体路由需要自行配置；课程给出的基础例子是默认 StateBackend + `/memories/` 路由到 StoreBackend。
 
@@ -173,21 +168,10 @@ read_file("/workspace/report.md", offset=100, limit=50)
 
 ### 5.2 普通权限：first-match-wins
 
-~~~python
-# 规则示意：具体路径和后端需在应用中配置
-permissions = [
-    FilesystemPermission(
-        operations=["write"],
-        paths=["/workspace/secrets/**"],
-        mode="deny",
-    ),
-    FilesystemPermission(
-        operations=["write"],
-        paths=["/workspace/**"],
-        mode="allow",
-    ),
-]
-~~~
+例如，若希望禁止写入敏感目录，但允许修改一般工作文件，权限规则应按以下顺序排列：
+
+1. `/workspace/secrets/**` → `deny`（优先拦截敏感路径）
+2. `/workspace/**` → `allow`（允许其他工作文件）
 
 普通读写权限按顺序匹配，**更具体的拒绝规则应放在更宽泛的允许规则之前**。未匹配规则时默认允许，所以它不是天然的全局写入白名单。
 
@@ -245,33 +229,16 @@ permissions = [
 
 ### 6.4 四层证据记忆（个人扩展方案）
 
-~~~text
-L3  全局知识：跨论文共识、争议和研究空白
-             ↑ ↓
-L2  文档摘要：每篇论文的问题、方法、实验、局限
-             ↑ ↓
-L1  原子证据：可验证的事实、指标、限制及引用
-             ↑ ↓
-L0  原始资料：全文 PDF、网页、代码、实验日志
-~~~
+| 层级 | 保存的信息 |
+| --- | --- |
+| L3：全局知识 | 跨论文共识、争议和研究空白 |
+| L2：文档摘要 | 各论文的研究问题、方法、结果和局限 |
+| L1：原子证据 | 可验证的事实、指标、限制及引用位置 |
+| L0：原始资料 | 全文 PDF、网页、研究材料及日志 |
 
 高层摘要用于快速导航；关键结论必须能向下回溯到原始资料。**不能因为上层摘要没有提及某条证据，就判定它不重要**。
 
-示例证据结构：
-
-~~~yaml
-claim: "模型 A 在数据集 B 上有提升"
-source:
-  paper_id: "paper_023"
-  section: "Experiments"
-  paragraph: 73
-evidence_type: "experimental_result"
-limitations:
-  - "只在单一数据分布下验证"
-verification_status: "needs_review"
-~~~
-
-这是自主设计的 Schema，**不是内置 Backend 数据格式**。要降低层级摘要的系统性遗漏，可增加随机原文抽查、针对局限性的定向扫描、证据覆盖矩阵与摘要—原文一致性校验。
+记录原子证据时，可保留**主张、论文 ID、章节与段落位置、证据类型、已知局限以及核验状态**。这些字段是自主提出的组织方式，**不是 Deep Agents 内置 Backend 的固定数据格式**。要降低层级摘要的系统性遗漏，可增加随机原文抽查、针对局限性的定向扫描、证据覆盖矩阵与摘要—原文一致性校验。
 
 ---
 
@@ -292,23 +259,7 @@ verification_status: "needs_review"
 
 ### 7.2 完善后的数据流
 
-~~~mermaid
-flowchart TD
-  U["用户研究任务"] --> A["主 Agent：计划、判断与编排"]
-  A --> C["CompositeBackend：按路径路由"]
-  C --> S["StateBackend：当前任务草稿"]
-  C --> M["StoreBackend：长期记忆"]
-  A --> X["受限 Sandbox：运行实验"]
-  X --> E["导出结果文件、日志与指标"]
-  E --> V{"可信服务校验结果"}
-  V -- "不合格" --> R["记录失败或请求重新执行"]
-  V -- "合格" --> F["持久化实验产物与溯源"]
-  F --> P{"是否值得长期保留？"}
-  P -- "暂时不需要" --> S
-  P -- "需要" --> M
-  M --> A
-  S --> A
-~~~
+**可信数据流：**用户任务先交由主 Agent 规划；任务状态与长期记忆分别通过 CompositeBackend 路由管理。不可信工作在受限 Sandbox 中完成，产生的结果先导出到可信应用服务，进行格式、来源及权限核验。合格产物存入持久存储，经过价值筛选后，其摘要、索引和证据引用才进入长期记忆；不合格内容则记录原因，不直接写入记忆。
 
 **这里有两个细节不可省略：**
 
@@ -350,20 +301,7 @@ flowchart TD
 | “delete 一定只检查目标路径。” | v0.7 内置删除还检查受保护子树的重叠范围 |
 | “做了多 Agent 和记忆就不会漏证据。” | 仍需覆盖指标、回查和独立验证 |
 
-## 9. 待实践：把理解变成可验证的结论
-
-以下实验是**后续计划**，不是已经执行的结果。
-
-- [ ] **State 生命周期**：分别测试无 Checkpointer、同一 `thread_id` 的持久化 Checkpointer、新 `thread_id` 的文件可见性。
-- [ ] **Composite 路由**：设置 `/workspace/` → State，`/memories/` → Store，观察跨线程差异。
-- [ ] **工具差异**：验证 `write_file` 覆盖、`edit_file` 局部修改、`read_file` 分片。
-- [ ] **删除保护**：在无敏感数据的测试目录中核验父目录递归删除的拒绝行为。
-- [ ] **Sandbox 产物**：执行一个小型 Python 实验，先导出结果，再销毁 Sandbox，核验数据仍能恢复。
-- [ ] **覆盖实验**：构造一份关键限制位于末尾的长文档，对比全文输入与多策略检索 + 覆盖检查的表现。
-
-建议每项实验记录：**运行版本、配置、输入、预期、实际结果、Trace/日志、结论与局限**。
-
-## 10. 最终总结
+## 9. 最终总结
 
 这一章我真正理解的不是几个 Backend 的名称，而是一个更一般的架构原则：
 
@@ -386,4 +324,4 @@ flowchart TD
 
 ---
 
-*本文由课程阅读与多轮苏格拉底式讨论整理而成。与内置机制不同的研究方案均已标注为扩展设计；没有伪造实践结果。*
+*本文由课程阅读与多轮苏格拉底式讨论整理而成。课程机制与个人扩展设计已作区分。*
