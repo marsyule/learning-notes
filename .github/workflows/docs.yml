@@ -13,14 +13,14 @@ permissions:
 
 concurrency:
   group: github-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.artifact.outputs.name }}
+      artifact_id: ${{ steps.upload.outputs.artifact_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,10 +39,54 @@ jobs:
           cp deepagents/chapter*.md docs/deepagents/
       - name: Build site
         run: zensical build --clean
+      - name: Choose unique artifact name
+        id: artifact
+        run: echo "name=github-pages-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
       - name: Upload website
+        id: upload
         uses: actions/upload-pages-artifact@v3
         with:
+          name: ${{ steps.artifact.outputs.name }}
           path: site
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Wait for uploaded artifact to become visible
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: ${{ needs.build.outputs.artifact_name }}
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ARTIFACT_NAME" || -z "$ARTIFACT_ID" ]]; then
+            echo "::error::Missing build artifact metadata"
+            exit 1
+          fi
+          for attempt in {1..12}; do
+            if response=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$ARTIFACT_NAME" 2>/dev/null) &&
+              jq -e --arg name "$ARTIFACT_NAME" --arg id "$ARTIFACT_ID" '
+                [.artifacts[] | select(.name == $name)] |
+                length == 1 and (.[0].id | tostring) == $id and .[0].expired == false
+              ' <<< "$response" >/dev/null; then
+              echo "Artifact $ARTIFACT_NAME ($ARTIFACT_ID) is visible."
+              # Allow a short buffer for the internal Actions artifact service.
+              sleep 5
+              exit 0
+            fi
+            echo "Waiting for artifact $ARTIFACT_NAME (attempt $attempt/12)"
+            if [[ "$attempt" -lt 12 ]]; then sleep 5; fi
+          done
+          echo "::error::Expected artifact did not become visible within the polling window"
+          exit 1
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ needs.build.outputs.artifact_name }}
