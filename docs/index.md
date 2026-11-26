@@ -10,7 +10,8 @@
 
 记录 DeepAgents In Action 课程的学习过程、代码实践与个人理解。
 
-- [Task03｜第三章：虚拟文件系统与存储后端](deepagents/chapter03.md)（笔记模板，待完善）
+- [Task03｜第三章：虚拟文件系统与存储后端](deepagents/chapter03.md)
+- [Task04｜第四章：任务规划与分解](deepagents/chapter04.md)
 
 ## 🧭 阅读说明
 

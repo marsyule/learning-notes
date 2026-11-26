@@ -9,7 +9,8 @@ My learning notes on AI Agents, Linux, AI Coding, Python, and software engineeri
 | 专题 | 内容 | 入口 |
 | --- | --- | --- |
 | DeepAgents In Action | Agent 开发课程学习记录 | [课程笔记](deepagents/README.md) |
-| DeepAgents · Task03 | 第三章：虚拟文件系统与存储后端 | [笔记模板（待完善）](deepagents/chapter03.md) |
+| DeepAgents · Task03 | 第三章：虚拟文件系统与存储后端 | [阅读笔记](deepagents/chapter03.md) |
+| DeepAgents · Task04 | 第四章：任务规划与分解 | [阅读笔记](deepagents/chapter04.md) |
 
 ## ✍️ 写作约定
 

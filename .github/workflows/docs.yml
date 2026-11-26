@@ -36,7 +36,7 @@ jobs:
         run: |
           mkdir -p docs/deepagents
           cp deepagents/README.md docs/deepagents/index.md
-          cp deepagents/chapter03.md docs/deepagents/chapter03.md
+          cp deepagents/chapter*.md docs/deepagents/
       - name: Build site
         run: zensical build --clean
       - name: Upload website

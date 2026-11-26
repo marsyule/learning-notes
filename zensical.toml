@@ -29,3 +29,8 @@ primary = "indigo"
 accent = "indigo"
 toggle.icon = "lucide/moon"
 toggle.name = "切换至浅色模式"
+
+[project.markdown_extensions]
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
